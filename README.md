@@ -7,7 +7,7 @@ Before starting, you must ensure you had installed [Poetry](https://python-poetr
 ### Deploying your AWS environment
 
 1. Create a Redshift provisioned cluster or serverless workgroup
-2. [Working with query editor v2](https://docs.aws.amazon.com/redshift/latest/mgmt/query-editor-v2-using.html)
+2. Use [Redshift Query Editor V2](https://docs.aws.amazon.com/redshift/latest/mgmt/query-editor-v2-using.html) to setup pre-requirements.
 
     ```sql
     -- Create external schema for kinesis
@@ -37,7 +37,7 @@ Before starting, you must ensure you had installed [Poetry](https://python-poetr
     poetry update
     ```
 
-4. Using CDK to deploy AWS resources.
+4. Use CDK to deploy AWS resources.
 
     ```bash
     # WORKDIR: clickstream-on-aws
@@ -52,7 +52,52 @@ Before starting, you must ensure you had installed [Poetry](https://python-poetr
         --parameters ClickstreamMaterializedView=mv_kinesisSource
     ```
 
-### Simulating user clickstream
+5. Use [Redshift Query Editor V2](https://docs.aws.amazon.com/redshift/latest/mgmt/query-editor-v2-using.html) to enable [Redshift Streaming Ingestion](https://docs.aws.amazon.com/redshift/latest/dg/materialized-view-streaming-ingestion.html) that provides low-latency, high-speed ingestion of stream data from Kinesis Data Streams into an Amazon Redshift materialized view.
+
+    ```sql
+    -- Create materialized view which will read data from kinesis stream
+    SET enable_case_sensitive_identifier TO true;
+    CREATE MATERIALIZED VIEW clickstream.mv_kinesisSource
+    AS
+    SELECT
+        ApproximateArrivalTimestamp AS approximateArrivalTimestamp,
+        PartitionKey AS partitionKey,
+        ShardId AS shardId,
+        SequenceNumber AS sequenceNumber,
+        -- JSON_PARSE(from_varbyte(Data, 'utf-8')) as data,
+        json_extract_path_text(from_varbyte(data, 'utf-8'), 'messageId')::VARCHAR AS messageId,
+        json_extract_path_text(from_varbyte(data, 'utf-8'), 'timestamp')::VARCHAR AS _timestamp,
+        json_extract_path_text(from_varbyte(data, 'utf-8'), 'type')::VARCHAR AS type,
+        -- Common
+        json_extract_path_text(from_varbyte(data, 'utf-8'), 'userId')::VARCHAR AS userId,
+        json_extract_path_text(from_varbyte(data, 'utf-8'), 'anonymousId')::VARCHAR AS anonymousId,
+        json_extract_path_text(from_varbyte(data, 'utf-8'), 'context')::SUPER AS context,
+        json_extract_path_text(from_varbyte(data, 'utf-8'), 'integrations')::SUPER AS integrations,
+
+        -- Identify
+        json_extract_path_text(from_varbyte(data, 'utf-8'), 'traits')::SUPER AS traits,
+
+        -- Track
+        json_extract_path_text(from_varbyte(data, 'utf-8'), 'event')::VARCHAR AS event,
+        json_extract_path_text(from_varbyte(data, 'utf-8'), 'properties')::SUPER AS properties,
+
+        -- Alias
+        json_extract_path_text(from_varbyte(data, 'utf-8'), 'previousId')::VARCHAR AS previousId,
+
+        -- Group
+        json_extract_path_text(from_varbyte(data, 'utf-8'), 'groupId')::VARCHAR AS groupId,
+
+        -- Page
+        json_extract_path_text(from_varbyte(data, 'utf-8'), 'category')::VARCHAR AS category,
+        json_extract_path_text(from_varbyte(data, 'utf-8'), 'name')::VARCHAR AS name
+    FROM kinesis."ClickstreamKinesisStream"
+    WHERE is_utf8(Data) AND is_valid_json(from_varbyte(Data, 'utf-8'));
+
+    -- Change materialized view owner to IAMR:ClickstreamRedshiftRole
+    ALTER TABLE clickstream.mv_kinesisSource OWNER TO "IAMR:ClickstreamRedshiftRole";
+    ```
+
+### Simulate clickstream
 
 - The easiest way to simulate is doing follow command, [for more detail](simulator.py)
 
@@ -66,6 +111,9 @@ Before starting, you must ensure you had installed [Poetry](https://python-poetr
 
 - If you want to simulate more users, you can leverage [Locust](https://docs.locust.io/en/stable/).
 
+    **Note**
+    You need to change `HOST = '<API Gateway URL>'` and `WRITE_KEY = '<Your Write Key>'` in [main.py](./benchmark/main.py) first.
+
     ```bash
     # Enable your python venv, if not
     source .venv/bin/activate
@@ -77,7 +125,23 @@ Before starting, you must ensure you had installed [Poetry](https://python-poetr
     # Open your browser and input <API Gateway URL> and how many users you want.
     ```
 
+### Explore clickstream data
+
+Open [Redshift Query Editor V2](https://docs.aws.amazon.com/redshift/latest/mgmt/query-editor-v2-using.html)
+
+```sql
+SET enable_case_sensitive_identifier TO true;
+
+SELECT *
+FROM clickstream.mv_kinesisSource
+LIMIT 10
+;
+```
+
 ## Install Tracking Code
+
+**Note**
+You need to change `HOST` to your API Gateway url and `WRITE_KEY` to the value you defined in CDK deployment in any SDK.
 
 ### Client Side based
 
