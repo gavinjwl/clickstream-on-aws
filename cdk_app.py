@@ -3,9 +3,9 @@ import os
 from aws_cdk import App, CfnParameter, Duration, Stack
 from aws_cdk import aws_apigateway as aws_apigw
 from aws_cdk import aws_iam, aws_kinesis, aws_lambda
-from constructs import Construct
 from aws_cdk.aws_events import Rule, Schedule
 from aws_cdk.aws_events_targets import LambdaFunction as LambdaTask
+from constructs import Construct
 
 
 class ClickstreamStack(Stack):
@@ -24,9 +24,13 @@ class ClickstreamStack(Stack):
         redshift_database = CfnParameter(self, id='RedshiftDatabase',)
         kinesis_schema = CfnParameter(self, id='KinesisSchema',)
         clickstream_schema = CfnParameter(self, id='ClickstreamSchema',)
-        clickstream_mv = CfnParameter(
-            self, id='ClickstreamMaterializedView',
-            default='mv_kinesisSource')
+        clickstream_mv = CfnParameter(self, id='ClickstreamMaterializedView', default='mv_kinesisSource')
+
+        # https://docs.aws.amazon.com/apigateway/latest/developerguide/limits.html#apigateway-account-level-limits-table
+        rate_limit = CfnParameter(
+            self, id='RateLimit', default='20', min_value=1, max_value=10000, type='Number',)
+        burst_limit = CfnParameter(
+            self, id='BurstLimit', default='10', min_value=1, max_value=5000, type='Number',)
 
         #
         # Resources
@@ -53,7 +57,7 @@ class ClickstreamStack(Stack):
                 'KINESIS_STREAM_NAME': kinesis_stream.stream_name,
                 'WRITE_KEY': write_key.value_as_string,
             },
-            reserved_concurrent_executions=10,
+            dead_letter_queue_enabled=True,
             timeout=Duration.seconds(30),
         )
 
@@ -65,8 +69,8 @@ class ClickstreamStack(Stack):
             rest_api_name='ClickstreamBackendAPI',
             handler=clickstream_backend_function,
             deploy_options=aws_apigw.StageOptions(
-                throttling_rate_limit=1,
-                throttling_burst_limit=1,
+                throttling_rate_limit=rate_limit.value_as_number,
+                throttling_burst_limit=burst_limit.value_as_number,
             ),
         )
 
@@ -120,7 +124,7 @@ class ClickstreamStack(Stack):
             }
         )
 
-        refresh_rule = Rule(
+        Rule(
             self, id='ClickstreamRedshiftRefreshRule',
             rule_name='ClickstreamRedshiftRefreshRule',
             schedule=Schedule.cron(minute='*'),
