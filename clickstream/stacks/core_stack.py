@@ -1,4 +1,4 @@
-from aws_cdk import CfnParameter, Duration, Stack
+from aws_cdk import CfnOutput, CfnParameter, Duration, Stack
 from aws_cdk import aws_apigateway as aws_apigw
 from aws_cdk import aws_iam, aws_kinesis, aws_lambda, aws_redshiftserverless
 from constructs import Construct
@@ -26,8 +26,9 @@ class CoreStack(Stack):
             self, id='BurstLimit', type='Number', default='10', min_value=1, max_value=5000,)
 
         # Data warehouse
-        redshift_default_role = aws_iam.Role(
-            self, id='RedshiftDefaultRole',
+        redshift_service_role = aws_iam.Role(
+            self, id='ClickstreamRedshiftServiceRole',
+            role_name='ClickstreamRedshiftServiceRole',
             assumed_by=aws_iam.ServicePrincipal('redshift.amazonaws.com'),
             managed_policies=[
                 aws_iam.ManagedPolicy.from_aws_managed_policy_name(
@@ -37,8 +38,8 @@ class CoreStack(Stack):
         self.namespace = aws_redshiftserverless.CfnNamespace(
             self, id='ClickstreamNamespace',
             namespace_name='clickstream-namespace',
-            default_iam_role_arn=redshift_default_role.role_arn,
-            iam_roles=[redshift_default_role.role_arn],
+            default_iam_role_arn=redshift_service_role.role_arn,
+            iam_roles=[redshift_service_role.role_arn],
             log_exports=['userlog', 'connectionlog', 'useractivitylog'],
         )
         self.workgroup = aws_redshiftserverless.CfnWorkgroup(
@@ -53,6 +54,34 @@ class CoreStack(Stack):
         )
         self.workgroup.add_depends_on(self.namespace)
 
+        # role used by MV refresh statement
+        self.clickstream_redshift_role = aws_iam.Role(
+            self, id='ClickstreamRedshiftRole',
+            role_name='ClickstreamRedshiftRole',
+            assumed_by=aws_iam.ServicePrincipal('lambda.amazonaws.com'),
+            managed_policies=[
+                aws_iam.ManagedPolicy.from_aws_managed_policy_name(
+                    'service-role/AWSLambdaBasicExecutionRole')
+            ],
+        )
+        self.clickstream_redshift_role.add_to_policy(aws_iam.PolicyStatement(
+            effect=aws_iam.Effect.ALLOW,
+            actions=[
+                'redshift-data:BatchExecuteStatement',
+                'redshift-data:ExecuteStatement',
+                'redshift-data:CancelStatement',
+                'redshift-data:ListStatements',
+                'redshift-data:GetStatementResult',
+                'redshift-data:DescribeStatement',
+                'redshift-data:ListDatabases',
+                'redshift-data:ListSchemas',
+                'redshift-data:ListTables',
+                'redshift-data:DescribeTable',
+                'redshift-serverless:GetCredentials',
+            ],
+            resources=['*'],
+        ))
+
         # Streaming
         self.kinesis_stream = aws_kinesis.Stream(
             self, id='ClickstreamKinesisStream',
@@ -61,7 +90,7 @@ class CoreStack(Stack):
             retention_period=Duration.days(7),
         )
 
-        self.kinesis_stream.grant_read(redshift_default_role)
+        self.kinesis_stream.grant_read(redshift_service_role)
 
         # Log server used for parsing and transform
         self.clickstream_backend_function = aws_lambda.Function(
@@ -90,4 +119,10 @@ class CoreStack(Stack):
                 throttling_rate_limit=rate_limit.value_as_number,
                 throttling_burst_limit=burst_limit.value_as_number,
             ),
+        )
+
+        # Outputs
+        CfnOutput(
+            self, id='ClickstreamRole',
+            value=self.clickstream_redshift_role.role_name
         )
