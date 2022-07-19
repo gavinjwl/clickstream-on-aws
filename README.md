@@ -2,102 +2,157 @@
 
 ## Getting started
 
-Before starting, you must ensure you had installed [Poetry](https://python-poetry.org/docs/#installation) for Pythen dependency management and [AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html#getting_started_install) for constructing AWS environment.
+We recommand that using [Cloud9 environment](https://aws.amazon.com/cloud9/) to deploy, or you must ensure you had installed in local before starting
 
-### Deploying your AWS environment
+- [AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html#getting_started_install) for constructing AWS environment
+- [Poetry](https://python-poetry.org/docs/#installation) for Pythen dependency management
+- [Docker](https://docs.docker.com/engine/install/) runtime.
 
-1. Create a Redshift provisioned cluster or serverless workgroup
-2. Use [Redshift Query Editor V2](https://docs.aws.amazon.com/redshift/latest/mgmt/query-editor-v2-using.html) to setup pre-requirements.
+## Deploying your AWS environment
 
-    ```sql
-    -- Create external schema for kinesis
-    CREATE EXTERNAL SCHEMA IF NOT EXISTS kinesis
-    FROM KINESIS
-    IAM_ROLE default;
+### Clone the repo
 
-    -- Create schema for clickstream
-    CREATE SCHEMA IF NOT EXISTS clickstream;
+```bash
+git clone https://github.com/gavinjwl/clickstream-on-aws
 
-    -- Create clickstream user and grant required permissions
-    -- Please do not change `IAMR:ClickstreamRedshiftRole`
-    CREATE USER "IAMR:ClickstreamRedshiftRole" PASSWORD DISABLE;
-    GRANT ALL ON SCHEMA kinesis TO "IAMR:ClickstreamRedshiftRole";
-    GRANT ALL ON SCHEMA clickstream TO "IAMR:ClickstreamRedshiftRole";
-    GRANT ALL ON ALL TABLES IN SCHEMA clickstream TO "IAMR:ClickstreamRedshiftRole";
-    ```
+cd clickstream-on-aws
+```
 
-3. Clone solution and install python dependencies
+### Activate Python virtual environment
 
-    ```bash
-    # Clone repo
-    git clone https://github.com/gavinjwl/clickstream-on-aws.git
-    cd clickstream-on-aws
+```bash
+poetry install
 
-    # Install python dependencies 
-    poetry update
-    ```
+source .venv/bin/activate
+```
 
-4. Use CDK to deploy AWS resources.
+### Deploy CDK stacks
 
-    ```bash
-    # WORKDIR: clickstream-on-aws
-    cdk synth
-    cdk deploy \
-        --parameters WriteKey=<YOUR-WRITE-KEY> \
-        --parameters RedshiftMode=serverless \
-        --parameters RedshiftName=clickstream-workgroup \
-        --parameters RedshiftDatabase=dev \
-        --parameters KinesisSchema=kinesis \
-        --parameters ClickstreamSchema=clickstream \
-        --parameters ClickstreamMaterializedView=mv_kinesisSource
-    ```
+Deploy all stacks
 
-5. Use [Redshift Query Editor V2](https://docs.aws.amazon.com/redshift/latest/mgmt/query-editor-v2-using.html) to enable [Redshift Streaming Ingestion](https://docs.aws.amazon.com/redshift/latest/dg/materialized-view-streaming-ingestion.html) that provides low-latency, high-speed ingestion of stream data from Kinesis Data Streams into an Amazon Redshift materialized view.
+```bash
+cdk deploy --all \
+    --parameters CoreStack:WriteKey='<define-your-write-key>' \
+    --parameters CoreStack:RedshiftServerlessSubnetIds='<assign-subnets-to-redshift>' \
+    --parameters CoreStack:RedshiftServerlessSecurityGroupIds='assign-security-groups-for-redshift'
+```
 
-    ```sql
-    -- Create materialized view which will read data from kinesis stream
-    SET enable_case_sensitive_identifier TO true;
-    CREATE MATERIALIZED VIEW clickstream.mv_kinesisSource
-    AS
-    SELECT
-        ApproximateArrivalTimestamp AS approximateArrivalTimestamp,
-        PartitionKey AS partitionKey,
-        ShardId AS shardId,
-        SequenceNumber AS sequenceNumber,
-        -- JSON_PARSE(from_varbyte(Data, 'utf-8')) as data,
-        json_extract_path_text(from_varbyte(data, 'utf-8'), 'messageId')::VARCHAR AS messageId,
-        json_extract_path_text(from_varbyte(data, 'utf-8'), 'timestamp')::VARCHAR AS _timestamp,
-        json_extract_path_text(from_varbyte(data, 'utf-8'), 'type')::VARCHAR AS type,
-        -- Common
-        json_extract_path_text(from_varbyte(data, 'utf-8'), 'userId')::VARCHAR AS userId,
-        json_extract_path_text(from_varbyte(data, 'utf-8'), 'anonymousId')::VARCHAR AS anonymousId,
-        json_extract_path_text(from_varbyte(data, 'utf-8'), 'context')::SUPER AS context,
-        json_extract_path_text(from_varbyte(data, 'utf-8'), 'integrations')::SUPER AS integrations,
+Or, deploy ONLY CoreStack by
 
-        -- Identify
-        json_extract_path_text(from_varbyte(data, 'utf-8'), 'traits')::SUPER AS traits,
+```bash
+cdk deploy CoreStack \
+    --parameters CoreStack:WriteKey='<define-your-write-key>' \
+    --parameters CoreStack:RedshiftServerlessSubnetIds='<assign-subnets-to-redshift>' \
+    --parameters CoreStack:RedshiftServerlessSecurityGroupIds='assign-security-groups-for-redshift'
+```
 
-        -- Track
-        json_extract_path_text(from_varbyte(data, 'utf-8'), 'event')::VARCHAR AS event,
-        json_extract_path_text(from_varbyte(data, 'utf-8'), 'properties')::SUPER AS properties,
+Or, deploy ONLY CoreStack with Dashboard by
 
-        -- Alias
-        json_extract_path_text(from_varbyte(data, 'utf-8'), 'previousId')::VARCHAR AS previousId,
+```bash
+cdk deploy CoreStack Dashboard \
+    --parameters CoreStack:WriteKey='<define-your-write-key>' \
+    --parameters CoreStack:RedshiftServerlessSubnetIds='<assign-subnets-to-redshift>' \
+    --parameters CoreStack:RedshiftServerlessSecurityGroupIds='assign-security-groups-for-redshift'
+```
 
-        -- Group
-        json_extract_path_text(from_varbyte(data, 'utf-8'), 'groupId')::VARCHAR AS groupId,
+Or, deploy ONLY CoreStack with Scheduled Refresh feature by
 
-        -- Page
-        json_extract_path_text(from_varbyte(data, 'utf-8'), 'category')::VARCHAR AS category,
-        json_extract_path_text(from_varbyte(data, 'utf-8'), 'name')::VARCHAR AS name
-    FROM kinesis."ClickstreamKinesisStream"
-    WHERE is_utf8(Data) AND is_valid_json(from_varbyte(Data, 'utf-8'));
+```bash
+cdk deploy CoreStack ScheduledRefreshStack \
+    --parameters CoreStack:WriteKey='<define-your-write-key>' \
+    --parameters CoreStack:RedshiftServerlessSubnetIds='<assign-subnets-to-redshift>' \
+    --parameters CoreStack:RedshiftServerlessSecurityGroupIds='assign-security-groups-for-redshift'
+```
 
-    -- Change materialized view owner to IAMR:ClickstreamRedshiftRole
-    ALTER TABLE clickstream.mv_kinesisSource OWNER TO "IAMR:ClickstreamRedshiftRole";
-    ```
+### Change Redshift Serverless workgroup password
 
-### Simulate clickstream
+After CDK deployments complete, we need to change Redshift Serverless workgroup password, so that we can connect.
+
+![redshift-change-namespace-password](images/redshift-change-namespace-password.png)
+
+### Connect to Redshift Serverless workgroup
+
+Use Username-Password to Connect to Redshift Serverless workgroup. Following show how to connect with QueryEditorV2
+
+![redshift-connect-with-password](images/redshift-connect-with-password.png)
+
+### Enable Redshift Streaming Ingestion
+
+Create an external schema for Kinesis Stream
+
+```sql
+-- Create external schema for kinesis
+CREATE EXTERNAL SCHEMA IF NOT EXISTS kinesis FROM KINESIS IAM_ROLE default;
+```
+
+Create clickstream schema
+
+```sql
+-- Create schema for clickstream
+CREATE SCHEMA IF NOT EXISTS clickstream;
+```
+
+Create user and grant permissions
+
+```sql
+-- Create clickstream user and grant required permissions
+-- Please do not change `IAMR:ClickstreamRedshiftRole`
+CREATE USER "IAMR:ClickstreamRedshiftRole" PASSWORD DISABLE;
+
+GRANT ALL ON SCHEMA kinesis TO "IAMR:ClickstreamRedshiftRole";
+
+GRANT ALL ON SCHEMA clickstream TO "IAMR:ClickstreamRedshiftRole";
+GRANT ALL ON ALL TABLES IN SCHEMA clickstream TO "IAMR:ClickstreamRedshiftRole";
+```
+
+Create a materialized view to consume the stream data
+
+```sql
+SET enable_case_sensitive_identifier TO true;
+CREATE MATERIALIZED VIEW clickstream.mv_kinesisSource
+AS
+SELECT
+    ApproximateArrivalTimestamp AS approximateArrivalTimestamp,
+    PartitionKey AS partitionKey,
+    ShardId AS shardId,
+    SequenceNumber AS sequenceNumber,
+    -- JSON_PARSE(from_varbyte(Data, 'utf-8')) as data,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'messageId')::VARCHAR AS messageId,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'timestamp')::VARCHAR AS _timestamp,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'type')::VARCHAR AS type,
+    -- Common
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'userId')::VARCHAR AS userId,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'anonymousId')::VARCHAR AS anonymousId,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'context')::SUPER AS context,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'integrations')::SUPER AS integrations,
+
+    -- Identify
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'traits')::SUPER AS traits,
+
+    -- Track
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'event')::VARCHAR AS event,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'properties')::SUPER AS properties,
+
+    -- Alias
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'previousId')::VARCHAR AS previousId,
+
+    -- Group
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'groupId')::VARCHAR AS groupId,
+
+    -- Page
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'category')::VARCHAR AS category,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'name')::VARCHAR AS name
+FROM kinesis."ClickstreamKinesisStream"
+WHERE is_utf8(Data) AND is_valid_json(from_varbyte(Data, 'utf-8'));
+```
+
+Change materialized view owner to `IAMR:ClickstreamRedshiftRole` so that ScheduledRefreshStack can work.
+
+```sql
+ALTER TABLE clickstream.mv_kinesisSource OWNER TO "IAMR:ClickstreamRedshiftRole";
+```
+
+## Simulate clickstream
 
 - The easiest way to simulate is doing follow command, [for more detail](simulator.py)
 
@@ -125,7 +180,7 @@ Before starting, you must ensure you had installed [Poetry](https://python-poetr
     # Open your browser and input <API Gateway URL> and how many users you want.
     ```
 
-### Explore clickstream data
+## Explore clickstream data
 
 Open [Redshift Query Editor V2](https://docs.aws.amazon.com/redshift/latest/mgmt/query-editor-v2-using.html)
 
