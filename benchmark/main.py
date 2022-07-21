@@ -8,7 +8,7 @@ from datetime import datetime
 from dateutil.tz import tzutc
 import analytics
 from faker import Faker
-from locust import HttpUser, between, tag, task
+from locust import FastHttpUser, between, tag, task
 
 # create logger
 _format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
@@ -24,7 +24,7 @@ WRITE_KEY = '<Your Write Key>'
 fake = Faker(locale=['zh_TW'])
 
 
-class WebUser(HttpUser):
+class WebUser(FastHttpUser):
     user_id = None
     cookie_id = fake.unique.uuid4()
     ip = fake.ipv4()
@@ -133,7 +133,7 @@ class WebUser(HttpUser):
         )
 
 
-class AnonymousUser(HttpUser):
+class AnonymousUser(FastHttpUser):
     cookie_id = fake.unique.uuid4()
     ip = fake.ipv4()
     user_agent = fake.user_agent()
