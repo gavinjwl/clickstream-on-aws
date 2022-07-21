@@ -2,7 +2,7 @@
 
 ## Getting started
 
-We recommand that using [Cloud9 environment](https://aws.amazon.com/cloud9/) to deploy, or you must ensure you had installed in local before starting
+We recommand that using [Cloud9 environment](https://aws.amazon.com/cloud9/) to deploy, or you must ensure you had installed following requirements in local before starting
 
 - [AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html#getting_started_install) for constructing AWS environment
 - [Poetry](https://python-poetry.org/docs/#installation) for Pythen dependency management
