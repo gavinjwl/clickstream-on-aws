@@ -1,46 +1,36 @@
 # Clickstream on AWS
 
-- Category: Analytics
-- Services: Amazon Redshift, Amazon API Gateway, AWS Lambda, Amazon CloudWatch
-- Level: 400
-- Audiences: Cloud Data Engineer, Cloud Database Administrator
+[繁體中文版說明](./README.zh-tw.md)
 
-## 概念
+## Getting started
 
-![solution-architecture.png]()
+We recommand that using [Cloud9 environment](https://aws.amazon.com/cloud9/) to deploy, or you must ensure you had installed following requirements in local before starting
 
-## 入門
+- [AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html#getting_started_install) for constructing AWS environment
+- [Poetry](https://python-poetry.org/docs/#installation) for Pythen dependency management
+- [Docker](https://docs.docker.com/engine/install/) runtime.
 
-我們建議使用 [AWS Cloud9](https://aws.amazon.com/cloud9/) 來進行部署，或者你可以使用自己偏好的裝置來進行部署，但是必須注意以下元件需要事先安裝好
+## Deploying your AWS environment
 
-- [Python 3.9](https://www.python.org/downloads/release/python-390/): 本解決方案依賴 Python 3.9 或更高版本
-- [AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html#getting_started_install): 用來建置此解決方案的 AWS 資源
-- [Poetry](https://python-poetry.org/docs/#installation): Python 的依賴管理套件
-- [Docker](https://docs.docker.com/engine/install/): 建立解決方案中的容器化資源
-
-## 部署 AWS 環境
-
-### 複製程式碼儲存庫
+### Clone the repo
 
 ```bash
 git clone https://github.com/gavinjwl/clickstream-on-aws
+
+cd clickstream-on-aws
 ```
 
-### 安裝 Python 依賴套件並啟用 Python 虛擬環境
+### Activate Python virtual environment
 
 ```bash
-cd clickstream-on-aws
-
 poetry install
 
 source .venv/bin/activate
 ```
 
-### 部署 AWS CDK Stacks
+### Deploy CDK stacks
 
-以下有幾個部署選項
-
-#### 1. 部署所有 Stacks
+Deploy all stacks
 
 ```bash
 cdk deploy --all \
@@ -49,7 +39,7 @@ cdk deploy --all \
     --parameters CoreStack:RedshiftServerlessSecurityGroupIds='assign-security-groups-for-redshift'
 ```
 
-#### 2. 只部署 CoreStack
+Or, deploy ONLY CoreStack by
 
 ```bash
 cdk deploy CoreStack \
@@ -58,16 +48,16 @@ cdk deploy CoreStack \
     --parameters CoreStack:RedshiftServerlessSecurityGroupIds='assign-security-groups-for-redshift'
 ```
 
-#### 3. 只部署 CoreStack 和 DashboardStack
+Or, deploy ONLY CoreStack with Dashboard by
 
 ```bash
-cdk deploy CoreStack DashboardStack \
+cdk deploy CoreStack Dashboard \
     --parameters CoreStack:WriteKey='<define-your-write-key>' \
     --parameters CoreStack:RedshiftServerlessSubnetIds='<assign-subnets-to-redshift>' \
     --parameters CoreStack:RedshiftServerlessSecurityGroupIds='assign-security-groups-for-redshift'
 ```
 
-#### 4. 只部署 CoreStack 和 ScheduledRefreshStack
+Or, deploy ONLY CoreStack with Scheduled Refresh feature by
 
 ```bash
 cdk deploy CoreStack ScheduledRefreshStack \
@@ -76,41 +66,35 @@ cdk deploy CoreStack ScheduledRefreshStack \
     --parameters CoreStack:RedshiftServerlessSecurityGroupIds='assign-security-groups-for-redshift'
 ```
 
-### 更改 Amazon Redshift Serverless Workgroup 的管理者密碼
+### Change Redshift Serverless Namespace password
 
-在 AWS CDK 部署完成之後，我們需要手動更改 Amazon Redshift Serverless Workgroup 的管理者密碼
-
-打開 [AWS Console](https://console.aws.amazon.com/console/home) 並切換畫面到 AWS CDK 部署的 [Amazon Redshift Serverless Workgroup](https://console.aws.amazon.com/redshiftv2/home#serverless-dashboard) (預設: __clickstream-namespace__)
-
-> 請注意 AWS Console 的區域是否與 AWS CDK 的部署區域相符
+After CDK deployments complete, we need to change Redshift Serverless Namespace password, so that we can connect.
 
 ![redshift-change-namespace-password](images/redshift-change-namespace-password.png)
 
-### 連線進 Amazon Redshift Serverless Workgroup
+### Connect to Redshift Serverless Namespace
 
-更改管理者密碼之後，我們將會透過 Amazon Redshift Query Editor V2 連線進 Amazon Redshift Serverless Workgroup
+Use Username-Password to Connect to Redshift Serverless Namespace. Following show how to connect with QueryEditorV2
 
 ![redshift-connect-with-password](images/redshift-connect-with-password.png)
 
-### 啟用 Amazon Redshift Streaming Ingestion 功能
+### Enable Redshift Streaming Ingestion
 
-#### 建立代表 Kinesis Stream 的 External Schema
+Create an external schema for Kinesis Stream
 
 ```sql
 -- Create external schema for kinesis
 CREATE EXTERNAL SCHEMA IF NOT EXISTS kinesis FROM KINESIS IAM_ROLE default;
 ```
 
-#### 建立代表 Clickstream 的 Schema
+Create clickstream schema
 
 ```sql
 -- Create schema for clickstream
 CREATE SCHEMA IF NOT EXISTS clickstream;
 ```
 
-#### 建立使用者並給予必要的權限
-
-> 請勿更改 `IAMR:ClickstreamRedshiftRole` 此為 AWS CDK 建立之 IAM Role
+Create user and grant permissions
 
 ```sql
 -- Create clickstream user and grant required permissions
@@ -123,7 +107,7 @@ GRANT ALL ON SCHEMA clickstream TO "IAMR:ClickstreamRedshiftRole";
 GRANT ALL ON ALL TABLES IN SCHEMA clickstream TO "IAMR:ClickstreamRedshiftRole";
 ```
 
-#### 建立 Materialized View 來讀取 Kinesis Stream 內的資料
+Create a materialized view to consume the stream data
 
 ```sql
 SET enable_case_sensitive_identifier TO true;
@@ -164,80 +148,44 @@ FROM kinesis."ClickstreamKinesisStream"
 WHERE is_utf8(Data) AND is_valid_json(from_varbyte(Data, 'utf-8'));
 ```
 
-#### 將 Materialized View 的擁有者變更為 `IAMR:ClickstreamRedshiftRole`
-
-> 因為只有擁有者才能刷新 Materialized View
-> 因為 ScheduledRefreshStack 中的 Lambda 會定時使用 Redshift Data API 來刷新 Materialized View 的資料
+Change materialized view owner to `IAMR:ClickstreamRedshiftRole` so that ScheduledRefreshStack can work.
 
 ```sql
+SET enable_case_sensitive_identifier TO true;
 ALTER TABLE clickstream.mv_kinesisSource OWNER TO "IAMR:ClickstreamRedshiftRole";
 ```
 
-## 驗證 clickstream
+## Simulate clickstream
 
-以下提供幾種簡易的驗證方式
+- The easiest way to simulate is doing follow command, [for more detail](simulator.py)
 
-### 簡易的網站並且已經引入 Analytics Snippet JS
+    ```bash
+    # Enable your python venv, if not
+    source .venv/bin/activate
+    
+    # Execute simulator
+    python3 simulator.py --host <API Gateway URL> --writeKey <Your Write Key>
+    ```
 
-更改 `samples/simple-website/local/v1/projects/default/settings` 的 __apiHost__
+- If you want to simulate more users, you can leverage [Locust](https://docs.locust.io/en/stable/).
 
-```json
-{
-  "integrations": {
-    "Segment.io": {
-      "protocol": "https",
-      "apiHost": "<CDK-deployed-ApiGateway-URL>",
-      "deliveryStrategy": {
-        "strategy": "batching",
-        "config": {
-          "size": 10,
-          "timeout": 5000
-        }
-      },
-...
-```
+    **Note**
+    You need to change `HOST = '<API Gateway URL>'` and `WRITE_KEY = '<Your Write Key>'` in [main.py](./benchmark/main.py) first.
 
-在本機上啟動 http container 模擬 clickstream
+    ```bash
+    # Enable your python venv, if not
+    source .venv/bin/activate
 
-```bash
-cd samples/simple-website
+    # Start locust
+    locust -f benchmark/main.py \
+        --web-port 8089
+    
+    # Open your browser and input <API Gateway URL> and how many users you want.
+    ```
 
-docker build -t clickstream-simple-website .
+## Explore clickstream data
 
-docker run -it --rm -p 8080:80 clickstream-simple-website
-```
-
-使用瀏覽器打開 `http://localhost:8080/index.html` 並輸入 write-key: default 然後按下 load 按鈕
-
-### 簡易的 Python 程式
-
-可以透過下列 Python SDK 模擬 Clickstream 的資料並發送到 ApiGateway
-
-```bash
-# Enable your python venv, if not
-source .venv/bin/activate
-
-# Execute simulator
-python3 samples/simple-backend-simulator/simulator.py \
-    --host <API Gateway URL> \
-    --writeKey <Your Write Key>
-```
-
-### 分散式測試
-
-假如需要模擬更多的使用者的使用狀況，可以使用 [Locust](https://docs.locust.io/en/stable/) 進行模擬
-
-```bash
-# Enable your python venv, if not
-source .venv/bin/activate
-
-# Start locust
-locust -f locust/main.py --web-port 8089
-```
-
-## 在 Amazon Redshift 中瀏覽 Clickstream 資料
-
-使用 Amazon Redshift Query Editor V2 並輸入下述查詢語法
+Open [Redshift Query Editor V2](https://docs.aws.amazon.com/redshift/latest/mgmt/query-editor-v2-using.html)
 
 ```sql
 SET enable_case_sensitive_identifier TO true;
@@ -248,7 +196,10 @@ LIMIT 10
 ;
 ```
 
-## 追蹤碼
+## Install Tracking Code
+
+**Note**
+You need to change `HOST` to your API Gateway url and `WRITE_KEY` to the value you defined in CDK deployment in any SDK.
 
 ### Client Side based
 
