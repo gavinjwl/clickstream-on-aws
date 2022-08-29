@@ -1,5 +1,7 @@
 # Clickstream on AWS
 
+[繁體中文版說明](./README.zh-tw.md)
+
 ## Getting started
 
 We recommand that using [Cloud9 environment](https://aws.amazon.com/cloud9/) to deploy, or you must ensure you had installed following requirements in local before starting
