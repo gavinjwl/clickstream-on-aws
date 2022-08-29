@@ -1,5 +1,5 @@
 '''
-nohup locust -f benchmark/main.py --web-port 8089 > locust.log
+nohup locust -f locust/main.py --web-port 8089 > locust.log
 '''
 import logging
 
@@ -12,14 +12,13 @@ from locust import FastHttpUser, between, tag, task
 
 # create logger
 _format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
-_logger = logging.getLogger('benchmark')
+_logger = logging.getLogger('locust')
 _ch = logging.StreamHandler()
 _ch.setLevel(logging.INFO)
 _ch.setFormatter(logging.Formatter(_format))
 _logger.addHandler(_ch)
 
-HOST = '<API Gateway URL>'
-WRITE_KEY = '<Your Write Key>'
+WRITE_KEY = 'default'
 
 fake = Faker(locale=['zh_TW'])
 
