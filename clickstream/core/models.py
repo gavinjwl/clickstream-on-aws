@@ -25,12 +25,12 @@ class Event(BaseModel):
     category: Union[str, None] = None  # Page
     name: Union[str, None] = None  # Page
 
-    writeKey: str
+    writeKey: Union[str, None] = None  # compatible with Python SDK
     sentAt: Union[datetime.datetime, None] = None
 
 
 class BatchEvent(BaseModel):
     batch: List[Event]
-    
-    writeKey: str
+
+    writeKey: Union[str, None] = None  # compatible with Python SDK
     sentAt: Union[datetime.datetime, None] = None
