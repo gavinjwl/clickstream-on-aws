@@ -45,6 +45,7 @@ source .venv/bin/activate
 #### 1. 部署所有 Stacks
 
 > RedshiftServerlessSubnetIds 需要至少三個 Subnets 並且具有 Internet 的能力 (IGW 或 NAT Gateway)
+
 > 可以自行調整 Refresh 的頻率來節省 Redshift Serverless 的成本 `clickstream-on-aws/clickstream/stacks/scheduled_refresh_stack.py#L38`
 
 ```bash
@@ -79,6 +80,7 @@ cdk deploy CoreStack DashboardStack \
 #### 4. 只部署 CoreStack 和 ScheduledRefreshStack
 
 > RedshiftServerlessSubnetIds 需要至少三個 Subnets 並且具有 Internet 的能力 (IGW 或 NAT Gateway)
+
 > 可以自行調整 Refresh 的頻率來節省 Redshift Serverless 的成本 `clickstream-on-aws/clickstream/stacks/scheduled_refresh_stack.py#L38`
 
 ```bash
@@ -212,7 +214,9 @@ ORDER BY 1;
 
 更改 `samples/simple-website/local/v1/projects/default/settings` 的 __apiHost__
 
-請注意 apiHost 的格式 (不需要 https 開頭，結尾的反斜線也不需要) 為: `xxxxx.execute-api.<region>.amazonaws.com/prod`
+請注意 apiHost 的格式: 不需要 https 開頭並且結尾的反斜線也不需要
+
+API Gateway 範例: `xxxxx.execute-api.<region>.amazonaws.com/prod`
 
 ```json
 {
