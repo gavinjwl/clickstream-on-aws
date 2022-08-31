@@ -1,5 +1,5 @@
 '''
-python simulator.py --host <API Gateway URL> --writeKey <Your Write Key>
+python samples/simple-backend-simulator/simulator.py --host <API Gateway URL> --writeKey <Your Write Key>
 '''
 import logging
 import argparse

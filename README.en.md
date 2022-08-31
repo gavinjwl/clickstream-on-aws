@@ -120,7 +120,7 @@ SELECT
     SequenceNumber AS sequenceNumber,
     -- JSON_PARSE(from_varbyte(Data, 'utf-8')) as data,
     json_extract_path_text(from_varbyte(data, 'utf-8'), 'messageId')::VARCHAR AS messageId,
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'timestamp')::VARCHAR AS _timestamp,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'timestamp')::VARCHAR AS event_timestamp,
     json_extract_path_text(from_varbyte(data, 'utf-8'), 'type')::VARCHAR AS type,
     -- Common
     json_extract_path_text(from_varbyte(data, 'utf-8'), 'userId')::VARCHAR AS userId,

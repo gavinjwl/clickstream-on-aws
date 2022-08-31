@@ -45,6 +45,7 @@ source .venv/bin/activate
 #### 1. 部署所有 Stacks
 
 > RedshiftServerlessSubnetIds 需要至少三個 Subnets 並且具有 Internet 的能力 (IGW 或 NAT Gateway)
+> 可以自行調整 Refresh 的頻率來節省 Redshift Serverless 的成本 `clickstream-on-aws/clickstream/stacks/scheduled_refresh_stack.py#L38`
 
 ```bash
 cdk deploy --all \
@@ -55,6 +56,8 @@ cdk deploy --all \
 
 #### 2. 只部署 CoreStack
 
+> RedshiftServerlessSubnetIds 需要至少三個 Subnets 並且具有 Internet 的能力 (IGW 或 NAT Gateway)
+
 ```bash
 cdk deploy CoreStack \
     --parameters CoreStack:WriteKey='default' \
@@ -64,6 +67,8 @@ cdk deploy CoreStack \
 
 #### 3. 只部署 CoreStack 和 DashboardStack
 
+> RedshiftServerlessSubnetIds 需要至少三個 Subnets 並且具有 Internet 的能力 (IGW 或 NAT Gateway)
+
 ```bash
 cdk deploy CoreStack DashboardStack \
     --parameters CoreStack:WriteKey='default' \
@@ -72,6 +77,9 @@ cdk deploy CoreStack DashboardStack \
 ```
 
 #### 4. 只部署 CoreStack 和 ScheduledRefreshStack
+
+> RedshiftServerlessSubnetIds 需要至少三個 Subnets 並且具有 Internet 的能力 (IGW 或 NAT Gateway)
+> 可以自行調整 Refresh 的頻率來節省 Redshift Serverless 的成本 `clickstream-on-aws/clickstream/stacks/scheduled_refresh_stack.py#L38`
 
 ```bash
 cdk deploy CoreStack ScheduledRefreshStack \
@@ -139,12 +147,12 @@ SELECT
     ShardId AS shardId,
     SequenceNumber AS sequenceNumber,
     -- JSON_PARSE(from_varbyte(Data, 'utf-8')) as data,
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'messageId')::VARCHAR AS messageId,
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'timestamp')::VARCHAR AS _timestamp,
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'type')::VARCHAR AS type,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'messageId')::VARCHAR(256) AS messageId,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'timestamp')::VARCHAR(256) AS event_timestamp,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'type')::VARCHAR(256) AS type,
     -- Common
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'userId')::VARCHAR AS userId,
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'anonymousId')::VARCHAR AS anonymousId,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'userId')::VARCHAR(256) AS userId,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'anonymousId')::VARCHAR(256) AS anonymousId,
     json_extract_path_text(from_varbyte(data, 'utf-8'), 'context')::SUPER AS context,
     json_extract_path_text(from_varbyte(data, 'utf-8'), 'integrations')::SUPER AS integrations,
 
@@ -152,18 +160,18 @@ SELECT
     json_extract_path_text(from_varbyte(data, 'utf-8'), 'traits')::SUPER AS traits,
 
     -- Track
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'event')::VARCHAR AS event,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'event')::VARCHAR(256) AS event,
     json_extract_path_text(from_varbyte(data, 'utf-8'), 'properties')::SUPER AS properties,
 
     -- Alias
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'previousId')::VARCHAR AS previousId,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'previousId')::VARCHAR(256) AS previousId,
 
     -- Group
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'groupId')::VARCHAR AS groupId,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'groupId')::VARCHAR(256) AS groupId,
 
     -- Page
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'category')::VARCHAR AS category,
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'name')::VARCHAR AS name
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'category')::VARCHAR(256) AS category,
+    json_extract_path_text(from_varbyte(data, 'utf-8'), 'name')::VARCHAR(256) AS name
 FROM kinesis."ClickstreamKinesisStream"
 WHERE is_utf8(Data) AND is_valid_json(from_varbyte(Data, 'utf-8'));
 ```
@@ -178,6 +186,24 @@ SET enable_case_sensitive_identifier TO true;
 ALTER TABLE clickstream.mv_kinesisSource OWNER TO "IAMR:ClickstreamRedshiftRole";
 ```
 
+#### 更改 MV table 的 DistStyle 和 SortKey
+
+```sql
+ALTER TABLE clickstream.mv_tbl__mv_kinesissource__0
+ALTER DISTSTYLE EVEN;
+
+ALTER TABLE clickstream.mv_tbl__mv_kinesissource__0
+ALTER SORTKEY (event_timestamp);
+```
+
+#### 確認 table info
+
+```sql
+SELECT "table", tbl_rows, encoded, diststyle, sortkey1, skew_sortkey1, skew_rows
+FROM svv_table_info
+ORDER BY 1;
+```
+
 ## 驗證 clickstream
 
 以下提供幾種簡易的驗證方式
@@ -185,6 +211,8 @@ ALTER TABLE clickstream.mv_kinesisSource OWNER TO "IAMR:ClickstreamRedshiftRole"
 ### 簡易的網站並且已經引入 Analytics Snippet JS
 
 更改 `samples/simple-website/local/v1/projects/default/settings` 的 __apiHost__
+
+請注意 apiHost 的格式 (不需要 https 開頭，結尾的反斜線也不需要) 為: `xxxxx.execute-api.<region>.amazonaws.com/prod`
 
 ```json
 {
