@@ -1,5 +1,5 @@
 '''
-nohup locust -f benchmark/main.py --web-port 8089 > locust.log
+nohup locust -f locust/main.py --web-port 8089 > locust.log
 '''
 import logging
 
@@ -8,23 +8,22 @@ from datetime import datetime
 from dateutil.tz import tzutc
 import analytics
 from faker import Faker
-from locust import HttpUser, between, tag, task
+from locust import FastHttpUser, between, tag, task
 
 # create logger
 _format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
-_logger = logging.getLogger('benchmark')
+_logger = logging.getLogger('locust')
 _ch = logging.StreamHandler()
 _ch.setLevel(logging.INFO)
 _ch.setFormatter(logging.Formatter(_format))
 _logger.addHandler(_ch)
 
-HOST = '<API Gateway URL>'
-WRITE_KEY = '<Your Write Key>'
+WRITE_KEY = 'default'
 
 fake = Faker(locale=['zh_TW'])
 
 
-class WebUser(HttpUser):
+class WebUser(FastHttpUser):
     user_id = None
     cookie_id = fake.unique.uuid4()
     ip = fake.ipv4()
@@ -133,7 +132,7 @@ class WebUser(HttpUser):
         )
 
 
-class AnonymousUser(HttpUser):
+class AnonymousUser(FastHttpUser):
     cookie_id = fake.unique.uuid4()
     ip = fake.ipv4()
     user_agent = fake.user_agent()

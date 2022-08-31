@@ -6,7 +6,7 @@ authors = ["Gavin Lin <gavinjwl@amazon.com>"]
 license = "Apache License"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.7.10"
 fastapi = "^0.78.0"
 uvicorn = "^0.18.2"
 redshift-connector = "^2.0.907"
