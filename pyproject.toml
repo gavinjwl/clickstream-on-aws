@@ -6,23 +6,23 @@ authors = ["Gavin Lin <gavinjwl@amazon.com>"]
 license = "Apache License"
 
 [tool.poetry.dependencies]
-python = "^3.7.10"
-fastapi = "^0.78.0"
-uvicorn = "^0.18.2"
-redshift-connector = "^2.0.907"
-boto3 = "^1.24.21"
-aws-cdk-lib = "^2.29.1"
-mangum = "^0.15.0"
+python = ">=3.8,<4"
+fastapi = "0.93.0"
+uvicorn = "0.20.0"
+redshift-connector = "2.0.910"
+boto3 = "1.26.87"
+aws-cdk-lib = "2.68.0"
+mangum = "0.17.0"
 
 [tool.poetry.dev-dependencies]
-autopep8 = "^1.6.0"
-pytest = "^7.1.2"
-pylint = "^2.13.7"
-mkdocs = "^1.3.0"
-analytics-python = "^1.4.0"
-locust = "^2.9.0"
-Faker = "^13.13.0"
-tqdm = "^4.64.0"
+autopep8 = "2.0.2"
+pytest = "7.2.2"
+pylint = "2.17.0"
+mkdocs = "1.4.2"
+analytics-python = "1.4.0"
+locust = "2.15.0"
+Faker = "17.6.0"
+tqdm = "4.65.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
