@@ -1,3 +1,6 @@
+# ignore cdk runtime context
+cdk.context.json
+
 # ignore vscode
 .vscode/
 
