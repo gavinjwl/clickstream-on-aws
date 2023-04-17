@@ -9,6 +9,7 @@ class KinesisStack(NestedStack):
 
         self.kinesis_stream = aws_kinesis.Stream(
             self, id='KinesisStream',
+            stream_name='clickstream_kinesis_stream',
             stream_mode=aws_kinesis.StreamMode.ON_DEMAND,
             retention_period=Duration.days(7),
         )

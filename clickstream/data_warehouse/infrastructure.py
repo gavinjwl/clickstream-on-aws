@@ -62,7 +62,7 @@ class RedshiftStack(NestedStack):
 
 
 class RedshiftServerlessStack(NestedStack):
-    def __init__(self, scope: Construct, id: str, vpc: ec2.IVpc, stream: kinesis.Stream, **kwargs):
+    def __init__(self, scope: Construct, id: str, vpc: ec2.IVpc, stream: kinesis.Stream, redshift_password: str, **kwargs):
         super().__init__(scope, id, **kwargs)
 
         selection = map(
@@ -93,13 +93,15 @@ class RedshiftServerlessStack(NestedStack):
             namespace_name='clickstream-namespace',
             default_iam_role_arn=redshift_service_role.role_arn,
             iam_roles=[redshift_service_role.role_arn],
+            admin_username="awsuser",
+            admin_user_password=redshift_password,
             log_exports=['userlog', 'connectionlog', 'useractivitylog'],
         )
         workgroup = redshiftserverless.CfnWorkgroup(
             self, id='RedshiftServerlessWorkgroup',
             namespace_name=namespace.namespace_name,
             workgroup_name='clickstream-workgroup',
-            base_capacity=32,
+            base_capacity=8,
             subnet_ids=subnet_ids,
             security_group_ids=[default_security_group.security_group_id],
             publicly_accessible=False,

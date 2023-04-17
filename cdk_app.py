@@ -3,7 +3,7 @@ import os
 from aws_cdk import App, Environment, Tags
 
 from clickstream.stack import ProvisionedStack
-# from clickstream.stack import ServerlessStack
+from clickstream.stack import ServerlessStack
 
 app = App()
 
@@ -16,6 +16,6 @@ env = Environment(
 
 ProvisionedStack(app, 'Clickstream', env=env)
 
-# ServerlessStack(app, 'Clickstream-Serverless')
+ServerlessStack(app, 'Clickstream-Serverless', env=env)
 
 app.synth()
