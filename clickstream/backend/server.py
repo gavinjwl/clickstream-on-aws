@@ -12,5 +12,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get('/')
+def index():
+    return 'ok'
+
+
 app.include_router(analytics_next.router)
 app.include_router(analytics_python.router)

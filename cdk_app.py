@@ -1,32 +1,21 @@
 import os
-from aws_cdk import App
 
-from clickstream.stacks import CoreStack, DashboardStack, ScheduledRefreshStack
+from aws_cdk import App, Environment, Tags
+
+from clickstream.stack import ProvisionedStack
+# from clickstream.stack import ServerlessStack
 
 app = App()
 
-core_stack = CoreStack(
-    app, 'CoreStack',
-    os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), 'clickstream', 'core'
-    )
+Tags.of(app).add('Project', 'Clickstream')
+
+env = Environment(
+    account=os.environ.get('CDK_DEPLOY_ACCOUNT', os.environ['CDK_DEFAULT_ACCOUNT']),
+    region=os.environ.get('CDK_DEPLOY_REGION', os.environ['CDK_DEFAULT_REGION'])
 )
 
-scheduled_refresh_stack = ScheduledRefreshStack(
-    app, 'ScheduledRefreshStack',
-    core_stack.workgroup,
-    core_stack.clickstream_redshift_role,
-    os.path.join(
-        os.path.dirname(os.path.realpath(__file__)),
-        'clickstream', 'scheduled_refresh'
-    )
-)
+ProvisionedStack(app, 'Clickstream', env=env)
 
-dashboard_stack = DashboardStack(
-    app, 'DashboardStack',
-    core_stack.clickstream_backend_api,
-    core_stack.clickstream_backend_function,
-    core_stack.kinesis_stream,
-)
+# ServerlessStack(app, 'Clickstream-Serverless')
 
 app.synth()
