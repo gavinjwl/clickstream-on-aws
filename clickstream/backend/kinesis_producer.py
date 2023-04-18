@@ -10,6 +10,7 @@ from models import Event
 
 
 def produce(events: List[Event], request: Request):
+    # For ApiGateway, lambda proxy integration, the request context is in the aws.event
     if request.scope.get('aws.event'):
         request_context = request.scope['aws.event']['requestContext']
         new_context = {
@@ -17,7 +18,11 @@ def produce(events: List[Event], request: Request):
             'userAgent': request_context['identity']['userAgent'],
         }
     else:
-        new_context = dict()
+        # For Application Load Balancer, the request context is in the request headers
+        new_context = {
+            'ip': request.headers.get('X-Forwarded-For', '').split(',')[0].strip(),
+            'userAgent': request.headers.get('User-Agent', '').strip(),
+        }
 
     records = list()
     for event in events:

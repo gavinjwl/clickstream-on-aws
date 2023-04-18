@@ -11,12 +11,12 @@ class Event(BaseModel):
 
     userId: Union[str, None] = None  # Common
     anonymousId: Union[str, None] = None  # Common
-    context: Union[Dict, None] = None  # Common
-    integrations: Union[Dict, None] = None  # Common
-    traits: Union[Dict, None] = None  # Identify
+    context: Union[Dict, None] = dict()  # Common
+    integrations: Union[Dict, None] = dict()  # Common
+    traits: Union[Dict, None] = dict()  # Identify
 
     event: Union[str, None] = None  # Track
-    properties: Union[Dict, None] = None  # Track
+    properties: Union[Dict, None] = dict()  # Track
 
     previousId: Union[str, None] = None  # Alias
 
