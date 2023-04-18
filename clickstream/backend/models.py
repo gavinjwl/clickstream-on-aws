@@ -1,6 +1,7 @@
-from typing import Dict, Union, List
-from pydantic import BaseModel
 import datetime
+from typing import Dict, List, Optional
+
+from pydantic import BaseModel
 
 
 class Event(BaseModel):
@@ -9,28 +10,28 @@ class Event(BaseModel):
 
     type: str
 
-    userId: Union[str, None] = None  # Common
-    anonymousId: Union[str, None] = None  # Common
-    context: Union[Dict, None] = None  # Common
-    integrations: Union[Dict, None] = None  # Common
-    traits: Union[Dict, None] = None  # Identify
+    userId: Optional[str] = None  # Common
+    anonymousId: Optional[str] = None  # Common
+    context: Optional[Dict] = dict()  # Common
+    integrations: Optional[Dict] = dict()  # Common
+    traits: Optional[Dict] = dict()  # Identify
 
-    event: Union[str, None] = None  # Track
-    properties: Union[Dict, None] = None  # Track
+    event: Optional[str] = None  # Track
+    properties: Optional[Dict] = dict()  # Track
 
-    previousId: Union[str, None] = None  # Alias
+    previousId: Optional[str] = None  # Alias
 
-    groupId: Union[str, None] = None  # Group
+    groupId: Optional[str] = None  # Group
 
-    category: Union[str, None] = None  # Page
-    name: Union[str, None] = None  # Page
+    category: Optional[str] = None  # Page
+    name: Optional[str] = None  # Page
 
-    writeKey: Union[str, None] = None  # compatible with Python SDK
-    sentAt: Union[datetime.datetime, None] = None
+    writeKey: Optional[str] = None  # compatible with Python SDK
+    sentAt: Optional[datetime.datetime] = None
 
 
 class BatchEvent(BaseModel):
     batch: List[Event]
 
-    writeKey: Union[str, None] = None  # compatible with Python SDK
-    sentAt: Union[datetime.datetime, None] = None
+    writeKey: Optional[str] = None  # compatible with Python SDK
+    sentAt: Optional[datetime.datetime] = None

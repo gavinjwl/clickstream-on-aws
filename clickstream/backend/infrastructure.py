@@ -1,7 +1,7 @@
 import os
 from os import path
 
-from aws_cdk import CfnOutput, CfnParameter, Duration, NestedStack, Stack
+from aws_cdk import CfnOutput, Duration, NestedStack
 from aws_cdk import aws_apigateway as aws_apigw
 from aws_cdk import aws_ec2 as ec2
 from aws_cdk import aws_ecr_assets as ecr_assets
@@ -62,25 +62,17 @@ class EcsStack(NestedStack):
             # redirect_http=True,
         )
 
-        # TODO Setup AutoScaling policy
-        # scaling_policy = fargate_service.service.auto_scale_task_count(
-        #     min_capacity=2,
-        #     max_capacity=10
-        # )
-        # scaling_policy.scale_on_cpu_utilization(
-        #     "CpuScaling",
-        #     policy_name="clickstream-ecs-service-cpu-scaling",
-        #     target_utilization_percent=40,
-        #     scale_in_cooldown=Duration.seconds(300),
-        #     scale_out_cooldown=Duration.seconds(60),
-        # )
-        # scaling_policy.scale_on_request_count(
-        #     "RequestScaling",
-        #     target_group=fargate_service.target_group,
-        #     requests_per_target=1000,
-        #     scale_in_cooldown=Duration.seconds(300),
-        #     scale_out_cooldown=Duration.seconds(60),
-        # )
+        # Setup AutoScaling policy
+        scaling_policy = fargate_service.service.auto_scale_task_count(
+            min_capacity=2,
+            max_capacity=10
+        )
+        scaling_policy.scale_on_cpu_utilization(
+            "CpuScaling",
+            target_utilization_percent=40,
+            scale_in_cooldown=Duration.seconds(300),
+            scale_out_cooldown=Duration.seconds(60),
+        )
 
         CfnOutput(
             self, "LoadBalancerDNS",

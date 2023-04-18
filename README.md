@@ -124,6 +124,31 @@ SELECT
     JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'name')::VARCHAR(256) AS name
 FROM kinesis.clickstream_kinesis_stream
 WHERE IS_UTF8(kinesis_data) AND IS_VALID_JSON(FROM_VARBYTE(kinesis_data, 'utf-8'));
+
+-- ALTER sort key
+ALTER TABLE clickstream.mv_tbl__mv_kinesis_source__0
+ALTER SORTKEY (event_timestamp);
+
+-- Sample use case: Last 5 minutes view
+CREATE OR REPLACE VIEW last_5_mins AS
+SELECT
+    message_id,
+    event_timestamp::timestamp,
+    event_type,
+    user_id,
+    anonymous_id,
+    JSON_PARSE(context) AS context,
+    JSON_PARSE(integrations) AS integrations,
+    traits,
+    event,
+    properties,
+    previous_id,
+    group_id,
+    category,
+    name
+FROM clickstream.mv_kinesis_source
+WHERE event_timestamp >= DATEADD(mins, -1, GETDATE())
+ORDER BY event_timestamp DESC;
 ```
 
 ### 7. 確認 table info
