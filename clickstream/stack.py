@@ -23,7 +23,7 @@ Must be 8-64 characters long. Must contain at least one uppercase letter, one lo
 
         kinesis_stack = KinesisStack(self, 'Kinesis')
 
-        EcsStack(self, 'Backend', vpc=vpc, stream=kinesis_stack.kinesis_stream)
+        EcsStack(self, 'Ecs', vpc=vpc, stream=kinesis_stack.kinesis_stream)
 
         RedshiftStack(self, 'Redshift', vpc=vpc, stream=kinesis_stack.kinesis_stream,
                       redshift_password=redshift_password.value_as_string)

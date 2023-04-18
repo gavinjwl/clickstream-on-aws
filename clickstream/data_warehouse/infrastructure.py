@@ -39,7 +39,6 @@ class RedshiftStack(NestedStack):
 
             # required properties
             cluster_type="multi-node",
-            db_name="clickstream",
             master_username="awsuser",
             master_user_password=redshift_password,
             node_type="ra3.xlplus",
@@ -107,4 +106,4 @@ class RedshiftServerlessStack(NestedStack):
             publicly_accessible=False,
             enhanced_vpc_routing=False,
         )
-        workgroup.add_depends_on(namespace)
+        workgroup.add_dependency(namespace)

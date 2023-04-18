@@ -20,10 +20,17 @@ git clone https://github.com/gavinjwl/clickstream-on-aws
 ### 2. 安裝 Python 依賴套件並啟用 Python 虛擬環境
 
 ```bash
+# Cloud9
+sudo yum update -y
+sudo yum install -y amazon-linux-extras
+sudo amazon-linux-extras install -y python3.8
+pip3.8 install --upgrade poetry
+# END cloud9
+
 cd clickstream-on-aws
 
 poetry install
-
+poetry shell
 source .venv/bin/activate
 ```
 
@@ -34,9 +41,12 @@ source .venv/bin/activate
 - 部署 Provisioned 版本
 
 ```bash
+# Bootstrap CDK, if you never did
+cdk bootstrap
+
 export VPC_ID="<your-vpc-id>"
-cdk deploy ProvisionedStack \
-  --context vpc-id=$VPC_ID \
+cdk deploy Clickstream \
+  --context vpc-id='$VPC_ID' \
   --parameters RedshiftPassword='your-password'
 ```
 
@@ -45,9 +55,12 @@ cdk deploy ProvisionedStack \
 > RedshiftServerlessSubnetIds 需要至少三個 Subnets 並且具有 Internet 的能力 (IGW 或 NAT Gateway)
 
 ```bash
+# Bootstrap CDK, if you never did
+cdk bootstrap
+
 export VPC_ID="<your-vpc-id>"
-cdk deploy ServerlessStack \
-  --context vpc-id=$VPC_ID \
+cdk deploy Clickstream-Serverless \
+  --context vpc-id='$VPC_ID' \
   --parameters RedshiftPassword='your-password'
 ```
 
@@ -78,27 +91,27 @@ CREATE MATERIALIZED VIEW clickstream.mv_kinesis_source
 AUTO REFRESH YES
 AS
 SELECT
-    _approximate_arrival_timestamp,
-    _partition_key,
-    _shard_id,
-    _sequence_number,
-    _refresh_time,
+    approximate_arrival_timestamp AS _approximate_arrival_timestamp,
+    partition_key AS _partition_key,
+    shard_id AS _shard_id,
+    sequence_number AS _sequence_number,
+    refresh_time AS _refresh_time,
     -- JSON_PARSE(from_varbyte(Data, 'utf-8')) as data,
     JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'messageId')::VARCHAR(256) AS message_id,
     JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'timestamp')::VARCHAR(256) AS event_timestamp,
-    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'type')::VARCHAR(256) AS type,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'type')::VARCHAR(256) AS event_type,
     -- Common
     JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'userId')::VARCHAR(256) AS user_id,
     JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'anonymousId')::VARCHAR(256) AS anonymous_id,
-    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'context')::SUPER AS context,
-    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'integrations')::SUPER AS integrations,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'context')::TEXT AS context,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'integrations')::TEXT AS integrations,
 
     -- Identify
-    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'traits')::SUPER AS traits,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'traits')::TEXT AS traits,
 
     -- Track
     JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'event')::VARCHAR(256) AS event,
-    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'properties')::SUPER AS properties,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'properties')::TEXT AS properties,
 
     -- Alias
     JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'previousId')::VARCHAR(256) AS previous_id,
@@ -111,13 +124,6 @@ SELECT
     JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'name')::VARCHAR(256) AS name
 FROM kinesis.clickstream_kinesis_stream
 WHERE IS_UTF8(kinesis_data) AND IS_VALID_JSON(FROM_VARBYTE(kinesis_data, 'utf-8'));
-
--- 更改 MV table 的 DistStyle 和 SortKey
-ALTER TABLE clickstream.mv_tbl__mv_kinesissource__0
-ALTER DISTSTYLE EVEN;
-
-ALTER TABLE clickstream.mv_tbl__mv_kinesissource__0
-ALTER SORTKEY (event_timestamp);
 ```
 
 ### 7. 確認 table info

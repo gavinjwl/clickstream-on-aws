@@ -1,8 +1,8 @@
 FROM public.ecr.aws/lambda/python:3.9
 
-# Install the function's dependencies using file requirements.txt
+# Install the function's dependencies using file lambda_requirements.txt
 # from your project folder.
-COPY requirements.txt  .
+COPY lambda_requirements.txt  .
 RUN  pip3 install --no-cache-dir --upgrade -r lambda_requirements.txt --target "${LAMBDA_TASK_ROOT}"
 
 # Copy function code
