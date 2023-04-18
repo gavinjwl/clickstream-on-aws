@@ -2,8 +2,10 @@ from aws_cdk import CfnTag, NestedStack
 from aws_cdk import aws_ec2 as ec2
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_kinesis as kinesis
+from aws_cdk import aws_logs as logs
 from aws_cdk import aws_redshift as redshift
 from aws_cdk import aws_redshiftserverless as redshiftserverless
+from aws_cdk import custom_resources as cr
 from constructs import Construct
 
 
@@ -34,7 +36,7 @@ class RedshiftStack(NestedStack):
             ],
         )
 
-        redshift.CfnCluster(
+        cluster = redshift.CfnCluster(
             self, "Redshift",
 
             # required properties
@@ -57,7 +59,33 @@ class RedshiftStack(NestedStack):
             tags=[
                 CfnTag(key="Project", value="Clickstream")
             ],
+        )
 
+        # AwsCustomResource for make role as default in Redshift cluster
+        cr.AwsCustomResource(
+            self, "RedshiftDefaultRole",
+            policy=cr.AwsCustomResourcePolicy.from_sdk_calls(
+                resources=[f'arn:aws:redshift:{self.region}:{self.account}:cluster:{cluster.ref}']
+            ),
+            log_retention=logs.RetentionDays.ONE_WEEK,
+            on_create={
+                "service": "Redshift",
+                "action": "modifyClusterIamRoles",
+                "parameters": {
+                    "ClusterIdentifier": cluster.ref,
+                    "DefaultIamRoleArn": role.role_arn,
+                },
+                "physical_resource_id": cr.PhysicalResourceId.of("RedshiftDefaultRole")
+            },
+            on_update={
+                "service": "Redshift",
+                "action": "modifyClusterIamRoles",
+                "parameters": {
+                    "ClusterIdentifier": cluster.ref,
+                    "DefaultIamRoleArn": role.role_arn,
+                },
+                "physical_resource_id": cr.PhysicalResourceId.of("RedshiftDefaultRole")
+            },
         )
 
 
