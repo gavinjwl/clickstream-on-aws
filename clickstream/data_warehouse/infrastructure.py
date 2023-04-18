@@ -39,6 +39,7 @@ class RedshiftStack(NestedStack):
 
             # required properties
             cluster_type="multi-node",
+            db_name='dev',
             master_username="awsuser",
             master_user_password=redshift_password,
             node_type="ra3.xlplus",
