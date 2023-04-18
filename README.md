@@ -1,16 +1,5 @@
 # Clickstream on AWS
 
-- Category: Analytics
-- Services: Amazon Redshift, Amazon API Gateway, AWS Lambda, Amazon CloudWatch
-- Level: 400
-- Audiences: Cloud Data Engineer, Cloud Database Administrator
-
-## 概念
-
-![images/solution-architecture.png](images/solution-architecture.png)
-
-![images/cloudwatch-dashboard.png](images/cloudwatch-dashboard.png)
-
 ## 入門
 
 我們建議使用 [AWS Cloud9](https://aws.amazon.com/cloud9/) 來進行部署，或者你可以使用自己偏好的裝置來進行部署，但是必須注意以下元件需要事先安裝好
@@ -22,183 +11,122 @@
 
 ## 部署 AWS 環境
 
-### 複製程式碼儲存庫
+### 1. 複製程式碼儲存庫
 
 ```bash
 git clone https://github.com/gavinjwl/clickstream-on-aws
 ```
 
-### 安裝 Python 依賴套件並啟用 Python 虛擬環境
+### 2. 安裝 Python 依賴套件並啟用 Python 虛擬環境
 
 ```bash
+# Cloud9
+sudo yum update -y
+sudo yum install -y amazon-linux-extras
+sudo amazon-linux-extras install -y python3.8
+pip3.8 install --upgrade poetry
+# END cloud9
+
 cd clickstream-on-aws
 
 poetry install
-
+poetry shell
 source .venv/bin/activate
 ```
 
-### 部署 AWS CDK Stacks
+### 3. 部署 AWS CDK Stacks
 
-以下有幾個部署選項
+部署 Provisioned 版本或 Serverless 版本
 
-#### 1. 部署所有 Stacks
-
-> RedshiftServerlessSubnetIds 需要至少三個 Subnets 並且具有 Internet 的能力 (IGW 或 NAT Gateway)
-
-> 可以自行調整 Refresh 的頻率來節省 Redshift Serverless 的成本 `clickstream-on-aws/clickstream/stacks/scheduled_refresh_stack.py#L38`
+- 部署 Provisioned 版本
 
 ```bash
-cdk deploy --all \
-    --parameters CoreStack:WriteKey='default' \
-    --parameters CoreStack:RedshiftServerlessSubnetIds='<at-least-3-subnets>' \
-    --parameters CoreStack:RedshiftServerlessSecurityGroupIds='<your-security-groups>'
+# Bootstrap CDK, if you never did
+cdk bootstrap
+
+export VPC_ID="<your-vpc-id>"
+cdk deploy Clickstream \
+  --context vpc-id='$VPC_ID' \
+  --parameters RedshiftPassword='your-password'
 ```
 
-#### 2. 只部署 CoreStack
-
-> RedshiftServerlessSubnetIds 需要至少三個 Subnets 並且具有 Internet 的能力 (IGW 或 NAT Gateway)
-
-```bash
-cdk deploy CoreStack \
-    --parameters CoreStack:WriteKey='default' \
-    --parameters CoreStack:RedshiftServerlessSubnetIds='<at-least-3-subnets>' \
-    --parameters CoreStack:RedshiftServerlessSecurityGroupIds='<your-security-groups>'
-```
-
-#### 3. 只部署 CoreStack 和 DashboardStack
+- 或部署 Serverless 版本
 
 > RedshiftServerlessSubnetIds 需要至少三個 Subnets 並且具有 Internet 的能力 (IGW 或 NAT Gateway)
 
 ```bash
-cdk deploy CoreStack DashboardStack \
-    --parameters CoreStack:WriteKey='default' \
-    --parameters CoreStack:RedshiftServerlessSubnetIds='<at-least-3-subnets>' \
-    --parameters CoreStack:RedshiftServerlessSecurityGroupIds='<your-security-groups>'
+# Bootstrap CDK, if you never did
+cdk bootstrap
+
+export VPC_ID="<your-vpc-id>"
+cdk deploy Clickstream-Serverless \
+  --context vpc-id='$VPC_ID' \
+  --parameters RedshiftPassword='your-password'
 ```
 
-#### 4. 只部署 CoreStack 和 ScheduledRefreshStack
+### 4. 連線進 Amazon Redshift
 
-> RedshiftServerlessSubnetIds 需要至少三個 Subnets 並且具有 Internet 的能力 (IGW 或 NAT Gateway)
+我們將會透過 Amazon Redshift Query Editor V2 連線進 Amazon Redshift
 
-> 可以自行調整 Refresh 的頻率來節省 Redshift Serverless 的成本 `clickstream-on-aws/clickstream/stacks/scheduled_refresh_stack.py#L38`
-
-```bash
-cdk deploy CoreStack ScheduledRefreshStack \
-    --parameters CoreStack:WriteKey='default' \
-    --parameters CoreStack:RedshiftServerlessSubnetIds='<at-least-3-subnets>' \
-    --parameters CoreStack:RedshiftServerlessSecurityGroupIds='<your-security-groups>'
-```
-
-### 更改 Amazon Redshift Serverless Namespace 的管理者密碼
-
-在 AWS CDK 部署完成之後，我們需要手動更改 Amazon Redshift Serverless Namespace 的管理者密碼
-
-打開 [AWS Console](https://console.aws.amazon.com/console/home) 並切換畫面到 AWS CDK 部署的 [Amazon Redshift Serverless Namespace](https://console.aws.amazon.com/redshiftv2/home#serverless-dashboard) (預設: __clickstream-namespace__)
-
-> 請注意 AWS Console 的區域是否與 AWS CDK 的部署區域相符
-
-![redshift-change-namespace-password](images/redshift-change-namespace-password.png)
-
-### 連線進 Amazon Redshift Serverless Namespace
-
-更改管理者密碼之後，我們將會透過 Amazon Redshift Query Editor V2 連線進 Amazon Redshift Serverless Namespace
+預設的使用者名稱為 `awsuser`，而密碼為建立 CDK 時候您指定的密碼
 
 ![redshift-connect-with-password](images/redshift-connect-with-password.png)
 
-### 啟用 Amazon Redshift Streaming Ingestion 功能
-
-#### 建立代表 Kinesis Stream 的 External Schema
+### 5. 建立代表 Kinesis Stream 的 External Schema
 
 ```sql
 -- Create external schema for kinesis
 CREATE EXTERNAL SCHEMA IF NOT EXISTS kinesis FROM KINESIS IAM_ROLE default;
 ```
 
-#### 建立代表 Clickstream 的 Schema
+### 6. 建立 Materialized View 來讀取 Kinesis Stream 內的資料
 
 ```sql
--- Create schema for clickstream
+-- Create schema
 CREATE SCHEMA IF NOT EXISTS clickstream;
-```
 
-#### 建立使用者並給予必要的權限
-
-> 請勿更改 `IAMR:ClickstreamRedshiftRole` 此為 AWS CDK 建立之 IAM Role
-
-```sql
--- Create clickstream user and grant required permissions
--- Please do not change `IAMR:ClickstreamRedshiftRole`
-CREATE USER "IAMR:ClickstreamRedshiftRole" PASSWORD DISABLE;
-
-GRANT ALL ON SCHEMA kinesis TO "IAMR:ClickstreamRedshiftRole";
-
-GRANT ALL ON SCHEMA clickstream TO "IAMR:ClickstreamRedshiftRole";
-GRANT ALL ON ALL TABLES IN SCHEMA clickstream TO "IAMR:ClickstreamRedshiftRole";
-```
-
-#### 建立 Materialized View 來讀取 Kinesis Stream 內的資料
-
-```sql
+-- Create MATERIALIZED VIEW
 SET enable_case_sensitive_identifier TO true;
-CREATE MATERIALIZED VIEW clickstream.mv_kinesisSource
+CREATE MATERIALIZED VIEW clickstream.mv_kinesis_source
+AUTO REFRESH YES
 AS
 SELECT
-    ApproximateArrivalTimestamp AS approximateArrivalTimestamp,
-    PartitionKey AS partitionKey,
-    ShardId AS shardId,
-    SequenceNumber AS sequenceNumber,
+    approximate_arrival_timestamp AS _approximate_arrival_timestamp,
+    partition_key AS _partition_key,
+    shard_id AS _shard_id,
+    sequence_number AS _sequence_number,
+    refresh_time AS _refresh_time,
     -- JSON_PARSE(from_varbyte(Data, 'utf-8')) as data,
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'messageId')::VARCHAR(256) AS messageId,
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'timestamp')::VARCHAR(256) AS event_timestamp,
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'type')::VARCHAR(256) AS type,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'messageId')::VARCHAR(256) AS message_id,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'timestamp')::VARCHAR(256) AS event_timestamp,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'type')::VARCHAR(256) AS event_type,
     -- Common
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'userId')::VARCHAR(256) AS userId,
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'anonymousId')::VARCHAR(256) AS anonymousId,
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'context')::SUPER AS context,
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'integrations')::SUPER AS integrations,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'userId')::VARCHAR(256) AS user_id,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'anonymousId')::VARCHAR(256) AS anonymous_id,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'context')::TEXT AS context,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'integrations')::TEXT AS integrations,
 
     -- Identify
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'traits')::SUPER AS traits,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'traits')::TEXT AS traits,
 
     -- Track
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'event')::VARCHAR(256) AS event,
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'properties')::SUPER AS properties,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'event')::VARCHAR(256) AS event,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'properties')::TEXT AS properties,
 
     -- Alias
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'previousId')::VARCHAR(256) AS previousId,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'previousId')::VARCHAR(256) AS previous_id,
 
     -- Group
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'groupId')::VARCHAR(256) AS groupId,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'groupId')::VARCHAR(256) AS group_id,
 
     -- Page
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'category')::VARCHAR(256) AS category,
-    json_extract_path_text(from_varbyte(data, 'utf-8'), 'name')::VARCHAR(256) AS name
-FROM kinesis."ClickstreamKinesisStream"
-WHERE is_utf8(Data) AND is_valid_json(from_varbyte(Data, 'utf-8'));
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'category')::VARCHAR(256) AS category,
+    JSON_EXTRACT_PATH_TEXT(FROM_VARBYTE(kinesis_data, 'utf-8'), 'name')::VARCHAR(256) AS name
+FROM kinesis.clickstream_kinesis_stream
+WHERE IS_UTF8(kinesis_data) AND IS_VALID_JSON(FROM_VARBYTE(kinesis_data, 'utf-8'));
 ```
 
-#### 將 Materialized View 的擁有者變更為 `IAMR:ClickstreamRedshiftRole`
-
-> 因為只有擁有者才能刷新 Materialized View
-> 因為 ScheduledRefreshStack 中的 Lambda 會定時使用 Redshift Data API 來刷新 Materialized View 的資料
-
-```sql
-SET enable_case_sensitive_identifier TO true;
-ALTER TABLE clickstream.mv_kinesisSource OWNER TO "IAMR:ClickstreamRedshiftRole";
-```
-
-#### 更改 MV table 的 DistStyle 和 SortKey
-
-```sql
-ALTER TABLE clickstream.mv_tbl__mv_kinesissource__0
-ALTER DISTSTYLE EVEN;
-
-ALTER TABLE clickstream.mv_tbl__mv_kinesissource__0
-ALTER SORTKEY (event_timestamp);
-```
-
-#### 確認 table info
+### 7. 確認 table info
 
 ```sql
 SELECT "table", tbl_rows, encoded, diststyle, sortkey1, skew_sortkey1, skew_rows
@@ -206,17 +134,17 @@ FROM svv_table_info
 ORDER BY 1;
 ```
 
-## 驗證 clickstream
+## 驗證
 
 以下提供幾種簡易的驗證方式
 
 ### 簡易的網站並且已經引入 Analytics Snippet JS
 
-更改 `samples/simple-website/local/v1/projects/default/settings` 的 __apiHost__
+更改 `samples/simple-website/local/v1/projects/default/settings` 的 **apiHost**
 
 請注意 apiHost 的格式: 不需要 https 開頭並且結尾的反斜線也不需要
 
-API Gateway 範例: `xxxxx.execute-api.<region>.amazonaws.com/prod`
+範例: `xxxxx.execute-api.<region>.amazonaws.com/prod`
 
 ```json
 {
@@ -258,18 +186,6 @@ source .venv/bin/activate
 python3 samples/simple-backend-simulator/simulator.py \
     --host <API Gateway URL> \
     --writeKey <Your Write Key>
-```
-
-### 分散式測試
-
-假如需要模擬更多的使用者的使用狀況，可以使用 [Locust](https://docs.locust.io/en/stable/) 進行模擬
-
-```bash
-# Enable your python venv, if not
-source .venv/bin/activate
-
-# Start locust
-locust -f locust/main.py --web-port 8089
 ```
 
 ## 在 Amazon Redshift 中瀏覽 Clickstream 資料

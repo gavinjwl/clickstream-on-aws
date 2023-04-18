@@ -1,2 +1,0 @@
-# backward compatibility https://github.com/boto/boto3/blob/develop/CHANGELOG.rst#12411
-boto3==1.24.11
