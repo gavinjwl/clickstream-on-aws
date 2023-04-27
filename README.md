@@ -147,7 +147,7 @@ SELECT
     category,
     name
 FROM clickstream.mv_kinesis_source
-WHERE event_timestamp >= DATEADD(mins, -1, GETDATE())
+WHERE event_timestamp >= DATEADD(mins, -5, GETDATE())
 ORDER BY event_timestamp DESC;
 ```
 

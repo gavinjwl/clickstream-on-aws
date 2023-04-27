@@ -6,6 +6,19 @@ from clickstream.data_warehouse.infrastructure import RedshiftServerlessStack, R
 from clickstream.streaming.infrastructure import KinesisStack
 
 
+class VpcStack(Stack):
+    def __init__(self, scope: Stack, id: str, **kwargs):
+        super().__init__(scope, id, **kwargs)
+
+        # The code that defines your stack goes here
+
+        ec2.Vpc(
+            self, id='ClickstreamVpc',
+            ip_addresses=ec2.IpAddresses.cidr("10.0.0.0/16"),
+            vpc_name='clickstream-vpc',
+        )
+
+
 class ProvisionedStack(Stack):
     def __init__(self, scope: Stack, id: str, **kwargs):
         super().__init__(scope, id, **kwargs)

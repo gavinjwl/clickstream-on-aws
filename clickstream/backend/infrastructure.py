@@ -111,7 +111,24 @@ class ApiGatewayStack(NestedStack):
             rest_api_name='ClickstreamBackendAPI',
             handler=clickstream_backend_function,
             deploy_options=aws_apigw.StageOptions(
+                # Rate limit
                 throttling_rate_limit=20,
                 throttling_burst_limit=10,
+                # Access log
+                access_log_destination=aws_apigw.LogGroupLogDestination(logs.LogGroup(
+                    self, 'AccessLogGroup',
+                    retention=logs.RetentionDays.ONE_WEEK,
+                )),
+                access_log_format=aws_apigw.AccessLogFormat.json_with_standard_fields(
+                    caller=False,
+                    http_method=True,
+                    ip=True,
+                    protocol=True,
+                    request_time=True,
+                    resource_path=True,
+                    response_length=True,
+                    status=True,
+                    user=True
+                ),
             ),
         )
