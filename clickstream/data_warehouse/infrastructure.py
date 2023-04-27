@@ -40,12 +40,15 @@ class RedshiftStack(NestedStack):
             self, "Redshift",
 
             # required properties
-            cluster_type="multi-node",
+            cluster_identifier='clickstream',
+            # cluster_type="multi-node",
+            # number_of_nodes=2,
+            cluster_type="single-node",
+            number_of_nodes=1,
             db_name='dev',
             master_username="awsuser",
             master_user_password=redshift_password,
             node_type="ra3.xlplus",
-            number_of_nodes=2,
 
             # the properties below are optional
             publicly_accessible=False,
